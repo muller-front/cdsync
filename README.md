@@ -37,7 +37,7 @@ sudo apt install rclone inotify-tools
 
 1.  Clone this repository:
     ```bash
-    git clone https://github.com/YOUR_USERNAME/cdsync.git
+    git clone https://github.com/muller-front/cdsync.git
     cd cdsync
     ```
 
