@@ -1,4 +1,4 @@
-# CDSync (Cloud Drive Sync)
+# CDSync 🔄 (Cloud Drive Sync)
 
 **Sad because there is no official Google Drive sync client for Linux?**
 Tired of the only working solutions being paid services?
