@@ -1,0 +1,19 @@
+# --- Configuration & Secrets ---
+config.env
+
+# --- Runtime Files ---
+cdsync.log
+
+# --- Lock files ---
+*.lock
+
+# --- System & Temporary Files ---
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.tmp
+
+# --- IDE Settings ---
+.vscode/
+.idea/

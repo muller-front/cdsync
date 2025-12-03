@@ -1,0 +1,28 @@
+# !!!!!!!!
+# WARNING! If files below already exist in your local directory, they will be erased!!
+# !!!!!!!!
+
+# --- SYSTEM AND TEMPORARY FILES ---
+- .DS_Store
+- Thumbs.db
+- desktop.ini
+- *.~tmp~
+- *.tmp
+- *.swp
+- *.lock
+
+# --- DEVELOPMENT (Performance Boost) ---
+- .git/**
+- .svn/**
+- .vscode/**
+- .idea/**
+- node_modules/**
+- __pycache__/**
+- venv/**
+- .env
+
+# --- CDSYNC INTERNAL FILES (Safety) ---
+- cdsync.log
+- config.env
+- *.sh
+- filter-rules.txt
