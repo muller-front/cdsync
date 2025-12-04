@@ -16,7 +16,11 @@ Unlike the standard `rclone mount` (which streams files) or manual sync scripts,
 ## 🚀 Features
 
 *   **Real-time Local Monitoring:** Uses `inotify` to detect local changes instantly and push them to the cloud.
-*   **Remote Polling:** Periodically checks the cloud for changes (default: every 5 min) to pull updates from other devices.
+*   **Remote Polling:** Periodically checks the cloud for changes to pull updates from other devices (default: every 5 min, but configurable).
+
+*   **System Tray Icon:** Visual indicator (Active/Stopped) with quick controls to Pause, Resume, or Force Sync.
+*   **Desktop Notifications:** Get notified immediately if a sync fails or a manual sync starts.
+
 *   **Systemd Integration:** Runs silently in the background as a user service. Starts automatically on boot.
 *   **Smart Filtering:** Includes a `filter-rules.txt` to automatically ignore build artifacts (`node_modules`, `.git`, `venv`, etc.), saving bandwidth and I/O.
 *   **Safety Locks:** Implements file locking (mutex) to prevent overlapping sync jobs.
@@ -25,12 +29,12 @@ Unlike the standard `rclone mount` (which streams files) or manual sync scripts,
 ## 📋 Prerequisites
 
 *   **Rclone**: Configured and working with your desired remote.
-*   **Inotify-tools**: For file system monitoring.
+*   **System Tools**: `inotify-tools` and Python libraries for the System Tray icon.
 
 ```bash
 # Ubuntu/Debian
 sudo apt update
-sudo apt install rclone inotify-tools
+sudo apt install rclone inotify-tools python3-gi gir1.2-appindicator3-0.1
 ```
 
 ## 🛠️ Installation
