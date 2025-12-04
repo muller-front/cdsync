@@ -77,7 +77,7 @@ Description=Timer for CDSync Polling ($BASE_DIR)
 
 [Timer]
 OnBootSec=2min
-OnUnitActiveSec=5min
+OnUnitActiveSec=${POLL_INTERVAL:-5}min
 Unit=$SERVICE_NAME-poll.service
 
 [Install]

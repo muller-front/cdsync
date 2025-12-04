@@ -1,6 +1,4 @@
-# !!!!!!!!
 # WARNING! If files below already exist in your local directory, they will be erased!!
-# !!!!!!!!
 
 # --- SYSTEM AND TEMPORARY FILES ---
 - .DS_Store
@@ -11,17 +9,25 @@
 - *.swp
 - *.lock
 
-# --- DEVELOPMENT (Performance Boost) ---
-- .git/**
-- .svn/**
-- .vscode/**
-- .idea/**
-- node_modules/**
-- __pycache__/**
-- venv/**
+# --- PYTHON GARBAGE (O Culpado) ---
+- __pycache__/
+- **/__pycache__/**
+- *.pyc
+- *.pyo
+- *.pyd
+- .venv/
 - .env
 
-# --- CDSYNC INTERNAL FILES (Safety) ---
+# --- DEVELOPMENT ---
+- .git/
+- **/.git/**
+- .svn/
+- .vscode/
+- .idea/
+- node_modules/
+- **/node_modules/**
+
+# --- CDSYNC INTERNAL ---
 - cdsync.log
 - config.env
 - *.sh

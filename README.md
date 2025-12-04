@@ -83,6 +83,11 @@ tail -f cdsync.log
 systemctl --user status cdsync-cdsync-watcher.service
 ```
 
+### ⚡ Performance Tip
+To achieve maximum speed and avoid Google API rate limits, it is highly recommended to configure your own **Google Client ID and Secret** in Rclone.
+1. Follow the [Rclone instructions](https://rclone.org/drive/#making-your-own-client-id) to create your credentials.
+2. Update your configuration: `rclone config` -> Edit remote -> Enter Client ID/Secret.
+
 ## 🗑️ Uninstallation
 
 To stop services and remove them from systemd:

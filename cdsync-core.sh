@@ -63,6 +63,9 @@ run_rclone() {
     rclone bisync "$RCLONE_REMOTE" "$LOCAL_SYNC_DIR" \
         --config "$RCLONE_CONFIG" \
         --drive-acknowledge-abuse \
+        --fast-list \
+        --checkers 16 \
+        --transfers 8 \
         $FILTER_FLAGS \
         $extra_flags \
         --verbose >> "$OUTPUT_LOG" 2>&1
