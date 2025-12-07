@@ -28,5 +28,5 @@ while true; do
     sleep 5
 
     echo "Change detected. Triggering sync..."
-    bash "$EXECUTABLE"
+    bash "$EXECUTABLE" &
 done

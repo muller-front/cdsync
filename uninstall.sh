@@ -3,7 +3,7 @@
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SYSTEMD_DIR="$HOME/.config/systemd/user"
 AUTOSTART_DIR="$HOME/.config/autostart"
-SERVICE_NAME="cdsync-$(basename "$BASE_DIR")"
+SERVICE_NAME="cdsync-$(basename "$BASE_DIR")-$(echo -n "$BASE_DIR" | md5sum | cut -c1-6)"
 
 echo "------------------------------------------------"
 echo "🗑️  Uninstalling CDSync..."

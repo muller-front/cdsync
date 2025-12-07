@@ -17,3 +17,7 @@ Thumbs.db
 # --- IDE Settings ---
 .vscode/
 .idea/
+
+# --- Python Cache ---
+__pycache__/
+*.pyc
