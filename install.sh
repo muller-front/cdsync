@@ -5,6 +5,7 @@ BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="$BASE_DIR/config.env"
 SYSTEMD_DIR="$HOME/.config/systemd/user"
 AUTOSTART_DIR="$HOME/.config/autostart"
+APP_DIR="$HOME/.local/share/applications"
 SERVICE_NAME="cdsync-$(basename "$BASE_DIR")-$(echo -n "$BASE_DIR" | md5sum | cut -c1-6)"
 
 # --- HELPER FUNCTIONS ---
@@ -43,7 +44,12 @@ install_core() {
         echo "✅ Created local directory: $LOCAL_SYNC_DIR"
     fi
 
-    echo "⚙️  Installing Core Services (Systemd)..."
+    echo "⚙️  Installing/Updating Core Services (Systemd)..."
+    
+    # Stop existing services to ensure clean update
+    systemctl --user stop "$SERVICE_NAME-watcher.service" 2>/dev/null
+    systemctl --user stop "$SERVICE_NAME-poll.timer" 2>/dev/null
+    
     mkdir -p "$SYSTEMD_DIR"
 
     # Create Watcher Service
@@ -85,26 +91,35 @@ WantedBy=timers.target
 EOF
 
     systemctl --user daemon-reload
-    systemctl --user enable --now "$SERVICE_NAME-watcher.service"
-    systemctl --user enable --now "$SERVICE_NAME-poll.timer"
+    systemctl --user daemon-reload
     
-    echo "✅ Core Services Installed and Started!"
+    echo "✅ Core Services Installed (Stopped)."
 }
 
-install_tray() {
+start_services() {
+    echo "🚀 Starting Services..."
+    systemctl --user enable --now "$SERVICE_NAME-watcher.service"
+    systemctl --user enable --now "$SERVICE_NAME-poll.timer"
+    echo "✅ Services Active!"
+}
+
+configure_tray() {
     # Check dependencies first
     if ! check_python_deps; then return; fi
 
-    echo "🎨 Installing System Tray Icon..."
+    echo "🎨 Configuring System Tray Icon..."
+    
+    # Kill running instance if any
+    pkill -f "cdsync-trayicon.py"
     
     # Make executable
     chmod +x "$BASE_DIR/cdsync-trayicon.py"
 
     mkdir -p "$AUTOSTART_DIR"
+    mkdir -p "$APP_DIR"
     
-    # Create Desktop Entry
-    cat > "$AUTOSTART_DIR/cdsync-tray.desktop" <<EOF
-[Desktop Entry]
+    # Create Desktop Entry Content
+    DESKTOP_CONTENT="[Desktop Entry]
 Type=Application
 Exec=$BASE_DIR/cdsync-trayicon.py
 Hidden=false
@@ -113,9 +128,21 @@ X-GNOME-Autostart-enabled=true
 Name=CDSync Tray
 Comment=System tray icon for CDSync
 Icon=emblem-synchronizing
-EOF
+Categories=Utility;Network;FileTransfer;
+Keywords=sync;drive;cloud;google;dropbox;
+Terminal=false"
 
-    echo "✅ Autostart entry created."
+    # Install to Autostart
+    echo "$DESKTOP_CONTENT" > "$AUTOSTART_DIR/cdsync-tray.desktop"
+    
+    # Install to Applications Menu
+    echo "$DESKTOP_CONTENT" > "$APP_DIR/cdsync-tray.desktop"
+    chmod +x "$APP_DIR/cdsync-tray.desktop"
+    
+    # Refresh Icon Cache if possible
+    update-desktop-database "$APP_DIR" 2>/dev/null
+
+    echo "✅ Desktop Entry installed/updated."
     
     # Launch immediately
     echo "🚀 Launching Tray Icon..."
@@ -128,29 +155,34 @@ echo "------------------------------------------------"
 echo "🛠️  CDSync Installer"
 echo "------------------------------------------------"
 
-# 1. CHECK CORE SERVICES
-if [ -f "$SYSTEMD_DIR/$SERVICE_NAME-watcher.service" ]; then
-    echo "ℹ️  Core Services (Systemd) are ALREADY installed."
+# 1. INSTALL CORE SERVICES
+# Always run to ensure config updates (e.g. Poll Interval) are applied
+install_core
+
+echo "------------------------------------------------"
+
+# 2. ASK TO START SERVICES
+echo "❓ Do you want to enable and start the synchronization services now?"
+echo "   (If No, you can start them later via the Tray Icon)"
+read -p "[Y/n]: " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ || -z $REPLY ]]; then
+    start_services
 else
-    install_core
+    echo "⚠️  Services installed but NOT started."
 fi
 
 echo "------------------------------------------------"
 
-# 2. CHECK/INSTALL TRAY ICON
-if [ -f "$AUTOSTART_DIR/cdsync-tray.desktop" ]; then
-    echo "ℹ️  Tray Icon is ALREADY configured to autostart."
+# 2. ASK TO INSTALL/LAUNCH TRAY ICON
+echo "🎨 Do you want to install/launch the System Tray Icon?"
+echo "   (This will update desktop entries and start the icon)"
+read -p "[Y/n]: " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ || -z $REPLY ]]; then
+    configure_tray
 else
-    # Ask user
-    echo "Would you like to install the System Tray Icon?"
-    echo "This provides a visual indicator and Start/Stop controls."
-    read -p "[y/N]: " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        install_tray
-    else
-        echo "Unknown choice or No. Skipping Tray Icon."
-    fi
+    echo "Skipping Tray Icon configuration."
 fi
 
 echo "------------------------------------------------"

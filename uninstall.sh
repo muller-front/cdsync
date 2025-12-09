@@ -2,7 +2,9 @@
 
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SYSTEMD_DIR="$HOME/.config/systemd/user"
+SYSTEMD_DIR="$HOME/.config/systemd/user"
 AUTOSTART_DIR="$HOME/.config/autostart"
+APP_DIR="$HOME/.local/share/applications"
 SERVICE_NAME="cdsync-$(basename "$BASE_DIR")-$(echo -n "$BASE_DIR" | md5sum | cut -c1-6)"
 
 echo "------------------------------------------------"
@@ -16,6 +18,12 @@ pkill -f "cdsync-trayicon.py"
 if [ -f "$AUTOSTART_DIR/cdsync-tray.desktop" ]; then
     echo "Removing Autostart entry..."
     rm "$AUTOSTART_DIR/cdsync-tray.desktop"
+fi
+
+if [ -f "$APP_DIR/cdsync-tray.desktop" ]; then
+    echo "Removing App Menu entry..."
+    rm "$APP_DIR/cdsync-tray.desktop"
+    update-desktop-database "$APP_DIR" 2>/dev/null
 fi
 
 # 2. REMOVE SYSTEMD SERVICES

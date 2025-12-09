@@ -16,9 +16,8 @@ Unlike the standard `rclone mount` (which streams files) or manual sync scripts,
 ## 🚀 Features
 
 *   **Real-time Local Monitoring:** Uses `inotify` to detect local changes instantly and push them to the cloud.
-*   **Remote Polling:** Periodically checks the cloud for changes to pull updates from other devices (default: every 5 min, but configurable).
-
-*   **System Tray Icon:** Visual indicator (Active/Stopped) with quick controls to Pause, Resume, or Force Sync.
+*   **Remote Polling:** Periodically checks the cloud for changes to pull updates from other devices (default: every 5 min, but configurable via Tray Menu).
+*   **System Tray Icon:** Visual indicator (Active/Stopped) with quick controls, dynamic icons, and configuration menu. Accessible via System Menu.
 *   **Desktop Notifications:** Get notified immediately if a sync fails or a manual sync starts.
 
 *   **Systemd Integration:** Runs silently in the background as a user service. Starts automatically on boot.
@@ -53,40 +52,42 @@ sudo apt install rclone inotify-tools python3-gi gir1.2-appindicator3-0.1
     ```
     *   Set `RCLONE_REMOTE` (e.g., `gdrive:`).
     *   Set `LOCAL_SYNC_DIR` (absolute path to your local folder).
+    *   **(Optional)** Set `POLL_INTERVAL` (default: 5 min).
 
 3.  **Install Services**:
-    Run the installer script. It will check connections and set up systemd services.
+    Run the installer script. It will check connections, install systemd services, and ask if you want to start them immediately.
     ```bash
     ./install.sh
     ```
 
-4.  **(Optional) First Run**:
-    If your local folder and cloud folder are vastly different, perform a manual resync first to build the database:
-    ```bash
-    rclone bisync "remote:" "/local/path" --resync --drive-acknowledge-abuse --verbose
-    ```
+## 🚀 First Run Recommendation
+If you are setting this up for the first time, or if your local folder differs significantly from the cloud:
+1.  Choose **No** when asked to start services during installation.
+2.  Start the **Tray Icon**.
+3.  Open the menu and select **"🔧 Force Resync (Repair)"**.
+    *   This ensures the synchronization database is built correctly without errors.
 
-## ⚙️ Customization
+## ⚙️ Managing Configuration
+
+### Changing Sync Interval
+To change how often CDSync checks for remote changes:
+1.  **Tray Icon** -> **⚙️ Config** -> **⏱️ Set Interval...**.
+2.  Enter the new duration in minutes. The system will update and reload automatically.
 
 ### Ignoring Files (Filters)
-Edit `filter-rules.txt` to add patterns you want to exclude from synchronization (e.g., temporary files, heavy build folders).
+Edit `filter-rules.txt` to add patterns to exclude (e.g., `node_modules`, `*.tmp`).
 
-### Check Status / Logs
-To see what CDSync is doing in real-time:
-```bash
-# View active logs
-tail -f cdsync.log
-```
+## ❓ Troubleshooting
 
-```bash
-# Check service status
-systemctl --user status cdsync-cdsync-watcher.service
-```
+### "Sync Failed" / Stale Lock
+If a sync crashes or the computer shuts down unexpectedly, a lock file might be left behind.
+*   **Solution**: **Tray Icon** -> **⚙️ Config** -> **🔧 Force Resync (Repair)**. It fixes the database and clears stale locks.
 
-### ⚡ Performance Tip
-To achieve maximum speed and avoid Google API rate limits, it is highly recommended to configure your own **Google Client ID and Secret** in Rclone.
-1. Follow the [Rclone instructions](https://rclone.org/drive/#making-your-own-client-id) to create your credentials.
-2. Update your configuration: `rclone config` -> Edit remote -> Enter Client ID/Secret.
+### "Files Deleted" in Activity Log?
+If you see "Deleted" events for files you didn't touch:
+*   Check if the file was removed from the **Remote (Google Drive/Dropbox)**.
+*   CDSync mirrors the remote state. If it's gone there, it gets removed locally.
+*   Check your Cloud Trash bin to recover them.
 
 ## 🗑️ Uninstallation
 

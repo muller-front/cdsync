@@ -62,17 +62,40 @@ run_rclone() {
     local extra_flags="$1"
     rclone bisync "$RCLONE_REMOTE" "$LOCAL_SYNC_DIR" \
         --config "$RCLONE_CONFIG" \
+        --log-format date,time \
+        --log-file "$OUTPUT_LOG" \
         --drive-acknowledge-abuse \
         --fast-list \
         --checkers 16 \
         --transfers 8 \
         $FILTER_FLAGS \
         $extra_flags \
-        --verbose >> "$OUTPUT_LOG" 2>&1
+        --verbose
     return $?
 }
 
 # --- EXECUTION FLOW ---
+
+# --- EXECUTION FLOW ---
+
+# Check for manual resync request
+if [ "$1" == "--force-resync" ]; then
+    log "MANUAL RESYNC INITIATED (User Request)."
+    send_notification "Manual Resync" "Starting repair database..." "normal"
+    
+    # Force resync
+    if run_rclone "--resync"; then
+         cat "$OUTPUT_LOG" >> "$LOG_FILE"
+         log "MANUAL RESYNC SUCCESSFUL."
+         send_notification "Resync Success" "Database repaired." "normal"
+    else
+         cat "$OUTPUT_LOG" >> "$LOG_FILE"
+         log "MANUAL RESYNC FAILED."
+         send_notification "Resync Failed" "Check logs." "critical"
+    fi
+    rm "$OUTPUT_LOG"
+    exit 0
+fi
 
 # Attempt 1: Normal Sync
 if run_rclone ""; then
