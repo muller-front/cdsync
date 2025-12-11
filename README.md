@@ -1,101 +1,93 @@
 # CDSync 🔄 (Cloud Drive Sync)
 
-**Sad because there is no official Google Drive sync client for Linux?**
-Tired of the only working solutions being paid services?
+**Sad because there is no official Google Drive sync client for Linux?**  
+Tired of the only working solutions being paid services? 💸
 
-**Smile! CDSync is here.**
+**Smile! CDSync is here.** 😃✨
 
-Keep your cloud drives synced locally for free using a lightweight, automated daemon based on Rclone, Inotify, and Systemd.
+Keep your cloud drives synced locally for free using a lightweight, automated daemon that works just like the official clients you miss.
 
 ---
 
-CDSync is a lightweight, robust, and automated **bidirectional synchronization tool** for Linux users who manage cloud storage via [Rclone](https://rclone.org/).
+## 🚀 Why CDSync?
 
-Unlike the standard `rclone mount` (which streams files) or manual sync scripts, CDSync functions like the official Google Drive/Dropbox clients: it keeps a **physical local copy** of your files and syncs changes in the background using system services.
+Unlike other tools that just "mount" your drive (making it slow) or require manual commands, **CDSync** gives you a **real physical copy** of your files.
+*   **Offline Access**: Your files are always there, even without internet.
+*   **Instant Upload**: Save a file, and *woosh* 💨! It's in the cloud instantly.
+*   **Battery Friendly**: It sleeps when you do. No heavy background processes draining your laptop.
 
-## 🚀 Features
+## ✨ Magic Features (v1.6)
 
-*   **Real-time Local Monitoring:** Uses `inotify` to detect local changes instantly and push them to the cloud.
-*   **Remote Polling:** Periodically checks the cloud for changes to pull updates from other devices (default: every 5 min, but configurable via Tray Menu).
-*   **System Tray Icon:** Visual indicator (Active/Stopped) with quick controls, dynamic icons, and configuration menu. Accessible via System Menu.
-*   **Desktop Notifications:** Get notified immediately if a sync fails or a manual sync starts.
+*   **⚡ Instant Smart Sync**: Changed a file? CDSync detects it instantly and uploads *only* that file. No scanning the whole drive. It's fast, efficient, and magic.
+*   **🧠 Anti-Loop Brain**: The system is smart enough to know the difference between *you* changing a file and *it* downloading a file. No more infinite sync loops!
+*   **🛡️ Conflict Highlander Mode**: You decide: "There can be only one" (Newer wins) or "Safety First" (Keep both).
+*   **🎨 Beautiful Tray Icon**: A sleek icon in your system bar tells you everything:
+    *   🟢 **Green**: All good, system active.
+    *   🔴 **Red**: System stopped.
+    *   ⚡ **Lightning**: Syncing right now!
+    *   📁 **Activity Log**: See exactly what files were added (✅), deleted (🗑️), or updated (🔄).
 
-*   **Systemd Integration:** Runs silently in the background as a user service. Starts automatically on boot.
-*   **Smart Filtering:** Includes a `filter-rules.txt` to automatically ignore build artifacts (`node_modules`, `.git`, `venv`, etc.), saving bandwidth and I/O.
-*   **Safety Locks:** Implements file locking (mutex) to prevent overlapping sync jobs.
-*   **Portable:** Can be installed from any directory.
+---
 
-## 📋 Prerequisites
+## 🎮 How to Use (The Tray Icon)
 
-*   **Rclone**: Configured and working with your desired remote.
-*   **System Tools**: `inotify-tools` and Python libraries for the System Tray icon.
+Once installed, a little **CDSync** icon lives in your system tray. Click it to control everything!
 
-```bash
-# Ubuntu/Debian
-sudo apt update
-sudo apt install rclone inotify-tools python3-gi gir1.2-appindicator3-0.1
-```
+### 🖱️ Main Menu
+*   **CDSync: 🟢/🔴**: Click to Turn On/Off. Like a light switch.
+*   **📜 Activity**: Hover to see the last 10 things that happened.
+*   **Sync Now**: Forces a check (just in case).
 
-## 🛠️ Installation
+### ⚙️ Config Menu (Power User Stuff)
+*   **⏱️ Set Interval...**: How often should we check the cloud for changes? (Default: 5 mins).
+*   **🔔 Notifications**: Too noisy? Set it to **⚠️ Errors Only** or silence it completely (🔴).
+*   **⚔️ Force Sync Newer**:
+    *   🔘 **On**: If there's a conflict, the newer file overwrites the old one. Clean and simple.
+    *   ⛔ **Off**: Safety mode. Keeps both files (creates a backup).
 
-1.  Clone this repository:
+---
+
+## 🛠️ Installation (Easy Mode)
+
+1.  **Get the code**:
     ```bash
     git clone https://github.com/muller-front/cdsync.git
     cd cdsync
     ```
 
-2.  **Configuration**:
-    Copy the template and edit your settings:
+2.  **Configure**:
+    Copy the template and tell us where your files are:
     ```bash
     cp config.env.example config.env
     nano config.env
     ```
-    *   Set `RCLONE_REMOTE` (e.g., `gdrive:`).
-    *   Set `LOCAL_SYNC_DIR` (absolute path to your local folder).
-    *   **(Optional)** Set `POLL_INTERVAL` (default: 5 min).
+    *   `RCLONE_REMOTE`: Your cloud drive name (e.g., `gdrive:`).
+    *   `LOCAL_SYNC_DIR`: Where you want your files on your computer.
 
-3.  **Install Services**:
-    Run the installer script. It will check connections, install systemd services, and ask if you want to start them immediately.
+3.  **Install**:
+    Run the magic script:
     ```bash
     ./install.sh
     ```
+    It will set up everything to start automatically when you turn on your computer.
 
-## 🚀 First Run Recommendation
-If you are setting this up for the first time, or if your local folder differs significantly from the cloud:
-1.  Choose **No** when asked to start services during installation.
-2.  Start the **Tray Icon**.
-3.  Open the menu and select **"🔧 Force Resync (Repair)"**.
-    *   This ensures the synchronization database is built correctly without errors.
+---
 
-## ⚙️ Managing Configuration
+## ❓ Troubleshooting (FAQ)
 
-### Changing Sync Interval
-To change how often CDSync checks for remote changes:
-1.  **Tray Icon** -> **⚙️ Config** -> **⏱️ Set Interval...**.
-2.  Enter the new duration in minutes. The system will update and reload automatically.
+**"I see 'Deleted' in the log but I didn't delete anything!"** 😱
+Don't panic! CDSync creates a mirror. If a file is removed from the Cloud (Google Drive/Dropbox), it is removed from your computer too. Check your cloud Trash bin!
 
-### Ignoring Files (Filters)
-Edit `filter-rules.txt` to add patterns to exclude (e.g., `node_modules`, `*.tmp`).
+**"It's stuck!"**
+Go to **⚙️ Config** -> **🔧 Force Resync (Repair)**. This fixes 99% of problems by rebuilding the database.
 
-## ❓ Troubleshooting
+---
 
-### "Sync Failed" / Stale Lock
-If a sync crashes or the computer shuts down unexpectedly, a lock file might be left behind.
-*   **Solution**: **Tray Icon** -> **⚙️ Config** -> **🔧 Force Resync (Repair)**. It fixes the database and clears stale locks.
-
-### "Files Deleted" in Activity Log?
-If you see "Deleted" events for files you didn't touch:
-*   Check if the file was removed from the **Remote (Google Drive/Dropbox)**.
-*   CDSync mirrors the remote state. If it's gone there, it gets removed locally.
-*   Check your Cloud Trash bin to recover them.
-
-## 🗑️ Uninstallation
-
-To stop services and remove them from systemd:
-```bash
-./uninstall.sh
-```
+## 📜 What's New in v1.6?
+*   **Smart Anti-Echo**: Replaced the "Blindfold" with a "Smart Ignore List". The system now knows exactly which files it touched.
+*   **Notification Levels**: You can now mute the notifications. 🤫
+*   **Conflict Toggle**: Added the "Highlander" switch. ⚔️
+*   **Visual Polish**: New icons for everything. It looks great!
 
 ## 📄 License
-
-This project is distributed under the MIT License. See the `LICENSE` file for more details.
+MIT License. Free and Open Source forever. ❤️

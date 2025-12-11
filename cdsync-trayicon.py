@@ -110,8 +110,17 @@ class CDSyncIndicator:
         self.log_file_path = self.get_log_file_path()
 
         # 3. Configure Icons
-        self.notifications_enabled = self.get_config_value("ENABLE_NOTIFICATIONS", "true") == "true"
-        self.icon_idle = "emblem-default"
+        # Initialize Notification Level from config.env
+        # Fallback to ENABLE_NOTIFICATIONS for backward compatibility
+        nl_str = self.get_config_value("NOTIFY_LEVEL")
+        if nl_str is not None and nl_str.isdigit():
+             self.notify_level = int(nl_str)
+        else:
+             # Legacy fallback
+             en_str = self.get_config_value("ENABLE_NOTIFICATIONS", "true")
+             self.notify_level = 2 if en_str == "true" else 0
+
+        self.icon_idle = "emblem-shared"
         self.icon_syncing = "mail-send-receive"
         self.icon_inactive = "dialog-warning"
         
@@ -126,7 +135,14 @@ class CDSyncIndicator:
         self.menu = Gtk.Menu()
         
         # Status Label
-        self.item_label = Gtk.MenuItem(label="CDSync: Checking...")
+        # Use ImageMenuItem to show the Power Icon (Shutdown Symbolic)
+        self.item_label = Gtk.ImageMenuItem(label="CDSync: Checking...")
+        
+        # Set the power icon (system-shutdown-symbolic)
+        icon_img = Gtk.Image.new_from_icon_name("system-shutdown-symbolic", Gtk.IconSize.MENU)
+        self.item_label.set_image(icon_img)
+        self.item_label.set_always_show_image(True) # Force show image
+        
         self.item_label.set_sensitive(True) 
         self.item_label.connect("activate", self.toggle_service)
         self.menu.append(self.item_label)
@@ -173,13 +189,57 @@ class CDSyncIndicator:
         item_interval = Gtk.MenuItem(label="⏱️ Set Interval...")
         item_interval.connect("activate", self.change_interval_dialog)
         self.config_menu.append(item_interval)
-
-        self.config_menu.append(Gtk.SeparatorMenuItem())
-
-        # Move Force Resync here
+        
+        # Force Resync (moved up)
         self.item_resync = Gtk.MenuItem(label="🔧 Force Resync (Repair)")
         self.item_resync.connect("activate", self.force_resync)
         self.config_menu.append(self.item_resync)
+
+        self.config_menu.append(Gtk.SeparatorMenuItem())
+
+        # Force Sync Newer Toggle
+        # Use ImageMenuItem for custom icons
+        self.item_force_sync = Gtk.ImageMenuItem(label="Force Sync Newer")
+        self.item_force_sync.connect("activate", self.toggle_force_sync_newer)
+        self.config_menu.append(self.item_force_sync)
+        
+        # Initialize Icon state
+        is_force_newer = self.get_config_value("FORCE_SYNC_NEWER", "true") == "true"
+        self.update_force_sync_ui(is_force_newer)
+
+        self.config_menu.append(Gtk.SeparatorMenuItem())
+
+        # Notifications Submenu
+        item_notif = Gtk.MenuItem(label="🔔 Notifications")
+        self.notif_menu = Gtk.Menu()
+        item_notif.set_submenu(self.notif_menu)
+        self.config_menu.append(item_notif)
+
+        # Radio items for Notification Level
+        # Group: Off (0), Errors Only (1), All (2)
+        
+        # 1. Off
+        self.rad_off = Gtk.RadioMenuItem(label="🔴 Off")
+        self.rad_off.connect("toggled", self.on_notify_level_changed, 0)
+        self.notif_menu.append(self.rad_off)
+        
+        # 2. Errors Only
+        self.rad_errors = Gtk.RadioMenuItem.new_with_label_from_widget(self.rad_off, "⚠️ Errors Only")
+        self.rad_errors.connect("toggled", self.on_notify_level_changed, 1)
+        self.notif_menu.append(self.rad_errors)
+        
+        # 3. All (Default)
+        self.rad_all = Gtk.RadioMenuItem.new_with_label_from_widget(self.rad_off, "✅ All Events")
+        self.rad_all.connect("toggled", self.on_notify_level_changed, 2)
+        self.notif_menu.append(self.rad_all)
+        
+        # Set Active State
+        if self.notify_level == 0:
+            self.rad_off.set_active(True)
+        elif self.notify_level == 1:
+            self.rad_errors.set_active(True)
+        else:
+            self.rad_all.set_active(True)
 
         # Quit Button
         self.menu.append(Gtk.SeparatorMenuItem())
@@ -249,19 +309,61 @@ class CDSyncIndicator:
             filename = os.path.basename(match_std.group(1).strip())
             action = match_std.group(2)
             
-            icon = "✅" # Default for Copied
-            if action == "Updated": icon = "🔄"
+            icon = "✅" 
+            
+            # Refinement: "Copied (replaced existing)" is actually an UPDATE
+            if action == "Copied" and "(replaced existing)" in line:
+                 icon = "🔄"
+            elif action == "Updated": icon = "🔄"
             elif action == "Deleted": icon = "🗑️"
             elif action == "Moved": icon = "➡️"
             
             return f"{timestamp}{icon} {filename}"
 
-        # Regex 2: Bisync Newer
-        # Ex: "INFO  : - Path2    File is newer       - (WORK)/file.txt"
-        match_newer = re.search(r"INFO\s+:\s+-\s+Path[12]\s+File is newer\s+-\s+(.*)", line)
-        if match_newer:
-            filename = os.path.basename(match_newer.group(1).strip())
+        # Regex 2: Bisync File logic (Newer, New, etc)
+        # Ex: "INFO  : - Path2    File is newer       - ..."
+        # Ex: "INFO  : - Path2    File is new         - ..."
+        match_bisync_file = re.search(r"INFO\s+:\s+-\s+Path[12]\s+(File is newer|File is new)\s+-\s+(.*)", line)
+        if match_bisync_file:
+            filename = os.path.basename(match_bisync_file.group(2).strip())
             return f"{timestamp}🆕 {filename}"
+            
+        # Regex 3: Directory Operations (Bisync)
+        # Ex: "INFO  : - Path1             Directory is new                            - aaaab"
+        # Broaden regex to catch variations in whitespace or phrasing
+        # Regex 3: Directory Operations (Bisync)
+        # Ex: "INFO  : - Path1             Directory is new                            - aaaab"
+        # Broaden regex to catch variations in whitespace or phrasing
+        match_dir = re.search(r"INFO\s+:.*?(Directory\s+(?:is new|was deleted|is newer|is older)).*?-\s+(.*)", line)
+        if match_dir:
+            action = match_dir.group(1)
+            dirname = os.path.basename(match_dir.group(2).strip())
+            
+            icon = "✅📂"
+            if "deleted" in action: 
+                icon = "🗑️📂"
+            elif "newer" in action or "older" in action:
+                icon = "🔄📂"
+            
+            return f"{timestamp}{icon} {dirname}"
+
+        # Regex 4: Low-level Directory Operations (Rclone Standard)
+        match_std_dir = re.search(r"INFO\s+:\s+(.*?):\s+(Made directory|Making directory|Removed directory|Removing directory)", line)
+        if match_std_dir:
+             dirname = os.path.basename(match_std_dir.group(1).strip())
+             action = match_std_dir.group(2)
+             
+             icon = "✅📂"
+             if "Removed" in action or "Removing" in action: 
+                 icon = "🗑️📂"
+             
+             return f"{timestamp}{icon} {dirname}"
+        # Regex 3 (Removed at user request): Smart/Shallow Sync Trigger
+        # match_smart = re.search(r"INFO:\s+🚀\s+(Shallow|Surgical|Smart) Sync.*?(?:on|for):\s+(.*)", line)
+        # if match_smart:
+        #    path = match_smart.group(2).strip()
+        #    if path == "Root Directory" or path == ".": path = "/"
+        #    return f"{timestamp}🚀 Syncing {path}..."
             
         return None
 
@@ -286,7 +388,7 @@ class CDSyncIndicator:
             # Iterate backwards
             for line in reversed(lines):
                 parsed = self.parse_log_line(line)
-                if parsed:
+                if parsed and parsed not in found_items:
                     found_items.append(parsed)
                     if len(found_items) >= 10:
                         break
@@ -355,9 +457,22 @@ class CDSyncIndicator:
         finally:
             if fp: fp.close()
 
-    def send_notification(self, title, message):
-        if self.notifications_enabled:
-            subprocess.Popen(["notify-send", "CDSync", f"{title}\n{message}"])
+    def send_notification(self, title, message, urgency="normal"):
+        if self.notify_level == 0:
+            return
+            
+        if self.notify_level == 1 and urgency != "critical":
+            return
+            
+        # Hint for transient notifications (History spam prevention)
+        # Using a raw list for Popen arguments
+        cmd = ["notify-send", "CDSync", f"{title}\n{message}", "-u", urgency]
+        
+        if urgency != "critical":
+            # Add hint for non-critical
+            cmd.extend(["-h", "int:transient:1"])
+
+        subprocess.Popen(cmd)
 
     def check_service_active(self):
         try:
@@ -382,10 +497,15 @@ class CDSyncIndicator:
             else:
                  self.indicator.set_icon(self.icon_idle)
                  
-            self.item_label.set_label("CDSync: 🟢 ACTIVE")
+            if is_running:
+                 self.indicator.set_icon(self.icon_syncing)
+            else:
+                 self.indicator.set_icon(self.icon_idle)
+                 
+            self.item_label.set_label("CDSync: 🟢")
         else:
             self.indicator.set_icon(self.icon_inactive)
-            self.item_label.set_label("CDSync: 🔴 STOPPED")
+            self.item_label.set_label("CDSync: 🔴")
 
         # Update Activity UI (Sync in Progress)
         if is_running:
@@ -547,8 +667,80 @@ class CDSyncIndicator:
         new_val = entry.get_text().strip()
         dialog.destroy()
 
+
         if response == Gtk.ResponseType.OK and new_val.isdigit() and int(new_val) > 0:
             self.apply_new_interval(new_val)
+
+    def update_force_sync_ui(self, active):
+        # Icon Logic
+        icon_name = "object-select-symbolic" if active else "action-unavailable-symbolic"
+        img = Gtk.Image.new_from_icon_name(icon_name, Gtk.IconSize.MENU)
+        self.item_force_sync.set_image(img)
+        self.item_force_sync.set_always_show_image(True)
+
+    def toggle_force_sync_newer(self, widget):
+        # Manual Toggle State Check
+        # We read from config or assume widget state? Widget doesn't have state (MenuItem).
+        # We must read current state from config to flip it.
+        # Or faster: just check if currently enabled.
+        current_state_str = self.get_config_value("FORCE_SYNC_NEWER", "true")
+        current_state = (current_state_str == "true")
+        
+        new_state = not current_state
+        state_str = "true" if new_state else "false"
+        
+        config_path = os.path.join(self.base_dir, "config.env")
+        try:
+             with open(config_path, 'r') as f:
+                 content = f.read()
+             
+             if "FORCE_SYNC_NEWER=" in content:
+                 content = re.sub(r'FORCE_SYNC_NEWER=.*', f'FORCE_SYNC_NEWER={state_str}', content)
+             else:
+                 content += f"\nFORCE_SYNC_NEWER={state_str}\n"
+                 
+             with open(config_path, 'w') as f:
+                 f.write(content)
+             
+             self.update_force_sync_ui(new_state)
+             
+             status_msg = "Enabled" if new_state else "Disabled"
+             self.send_notification("Config Updated", f"Force Sync Newer: {status_msg}")
+             
+        except Exception as e:
+             self.send_notification("Error", f"Could not update config: {e}", "critical")
+
+    def on_notify_level_changed(self, widget, level):
+        if not widget.get_active():
+            return
+            
+        self.notify_level = level
+        
+        # Update config.env
+        config_path = os.path.join(self.base_dir, "config.env")
+        try:
+             with open(config_path, 'r') as f:
+                 content = f.read()
+             
+             # Remove legacy ENABLE_NOTIFICATIONS if checked
+             # But here just strictly updating NOTIFY_LEVEL
+             
+             if "NOTIFY_LEVEL=" in content:
+                 content = re.sub(r'NOTIFY_LEVEL=.*', f'NOTIFY_LEVEL={level}', content)
+                 # Also ensure ENABLE_NOTIFICATIONS is removed or updated to match logic?
+                 # Safest is just to create/update NOTIFY_LEVEL
+             else:
+                 content += f"\nNOTIFY_LEVEL={level}\n"
+             
+             with open(config_path, 'w') as f:
+                 f.write(content)
+             
+             # self.send_notification("Config Updated", f"Notification Level set to {level}") 
+             # (Self-notification might be silenced by the level itself, which is fine)
+             
+        except Exception as e:
+             # If we can't notify, well... print to console?
+             print(f"Error updating config: {e}")
 
     def apply_new_interval(self, minutes):
         # 1. Update config.env
