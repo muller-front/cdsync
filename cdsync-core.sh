@@ -87,6 +87,11 @@ for arg in "$@"; do
             SMART_SYNC_PATH="$2" # We use this just for logging if needed
             shift 2
             ;;
+
+        --dedupe)
+            DEDUPE_MODE="$2"
+            shift 2
+            ;;
         *)
             # shift
             ;;
@@ -97,10 +102,16 @@ exec 200>"$LOCK_FILE"
 
 # LOCKING STRATEGY
 if [ -n "$SMART_SYNC_PATH" ]; then
+    # *** DISABLED ***
     # Shallow Sync (Smart): QUEUE/WAIT
     # We use a blocking lock. This script will PAUSE here until the lock is released.
-    log "WAIT: Unlocking queued... (Pending prior sync)"
-    flock 200
+    #log "WAIT: Unlocking queued... (Pending prior sync)"
+    #flock 200
+    
+    # *** ENABLED ***
+    # Shallow Sync (Smart): SKIP IF BUSY
+    # Prevent "Thundering Herd" from backup software like Duplicati
+    flock -n 200 || { log "SKIP: Smart Sync ignored (System busy). Will be picked up by Timer."; exit 0; }
 elif [ "$DIR_EVENT" = "true" ]; then
     # Directory Event: WAIT
     # Full Bisync triggered by directory change. Needs to wait.
@@ -273,6 +284,36 @@ if [ "$FORCE_RESYNC" = "true" ]; then
     fi
     rm "$OUTPUT_LOG"
     exit 0
+
+fi
+
+# DEDUPLICATION LOGIC
+if [ -n "$DEDUPE_MODE" ]; then
+    log "MAINTENANCE: Deduplication started (Mode: $DEDUPE_MODE)."
+    send_notification "Maintenance Started" "Cleaning cloud duplicates ($DEDUPE_MODE)..." "normal"
+    
+    # Valid modes: rename, newest, oldest, first, largest, smallest
+    # We map 'newest' -> 'newest' (Keep newest), 'rename' -> 'rename'.
+    
+    rclone dedupe "$DEDUPE_MODE" "$RCLONE_REMOTE" \
+        --config "$RCLONE_CONFIG" \
+        --drive-acknowledge-abuse \
+        --verbose >> "$OUTPUT_LOG" 2>&1
+        
+    EXIT_CODE=$?
+    
+    cat "$OUTPUT_LOG" >> "$LOG_FILE"
+    rm "$OUTPUT_LOG"
+    
+    if [ $EXIT_CODE -eq 0 ]; then
+        log "MAINTENANCE SUCCESSFUL."
+        send_notification "Maintenance Success" "Deduplication complete." "normal"
+        exit 0
+    else
+        log "MAINTENANCE FAILED."
+        send_notification "Maintenance Error" "Check logs." "critical"
+        exit $EXIT_CODE
+    fi
 fi
 
 # Attempt 1: Normal Sync

@@ -120,9 +120,12 @@ class CDSyncIndicator:
              en_str = self.get_config_value("ENABLE_NOTIFICATIONS", "true")
              self.notify_level = 2 if en_str == "true" else 0
 
-        self.icon_idle = "emblem-shared"
+        self.icon_idle = "emblem-default"
+        #self.icon_idle = "weather-overcast"
         self.icon_syncing = "mail-send-receive"
+        #self.icon_syncing = "weather-storm"
         self.icon_inactive = "dialog-warning"
+        #self.icon_inactive = "weather-severe-alert"
         
         self.indicator = AppIndicator3.Indicator.new(
             self.APPINDICATOR_ID,
@@ -175,7 +178,7 @@ class CDSyncIndicator:
         self.item_sync.connect("activate", self.manual_sync)
         self.menu.append(self.item_sync)
 
-        self.menu.append(self.item_sync)
+
 
         self.menu.append(Gtk.SeparatorMenuItem())
 
@@ -240,6 +243,24 @@ class CDSyncIndicator:
             self.rad_errors.set_active(True)
         else:
             self.rad_all.set_active(True)
+        
+        self.config_menu.append(Gtk.SeparatorMenuItem())
+
+        # Deduplicate Remote Submenu
+        item_dedupe = Gtk.MenuItem(label="🧹 Deduplicate Remote")
+        self.dedupe_menu = Gtk.Menu()
+        item_dedupe.set_submenu(self.dedupe_menu)
+        self.config_menu.append(item_dedupe)
+
+        # Opt 1: Rename
+        item_dedupe_rename = Gtk.MenuItem(label="Rename Duplicates")
+        item_dedupe_rename.connect("activate", self.run_dedupe, "rename")
+        self.dedupe_menu.append(item_dedupe_rename)
+
+        # Opt 2: Newest
+        item_dedupe_newest = Gtk.MenuItem(label="Delete all but Newest (Risky)")
+        item_dedupe_newest.connect("activate", self.run_dedupe, "newest")
+        self.dedupe_menu.append(item_dedupe_newest)
 
         # Quit Button
         self.menu.append(Gtk.SeparatorMenuItem())
@@ -259,13 +280,26 @@ class CDSyncIndicator:
         GLib.timeout_add_seconds(2, self.update_status)
 
     def get_config_value(self, var_name, default=None):
-        """Reads config.env using bash to access variables"""
+        """Reads config.env safely using Python (No shell injection)"""
+        config_path = os.path.join(self.base_dir, "config.env")
+        if not os.path.exists(config_path):
+            return default
+
         try:
-            cmd = f'source "{self.base_dir}/config.env"; echo ${var_name}'
-            result = subprocess.check_output(cmd, shell=True, executable="/bin/bash").decode().strip()
-            if not result:
-                return default
-            return result
+            with open(config_path, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    # Match VAR=VALUE, ignoring comments #
+                    if line.startswith(f"{var_name}="):
+                        # Extract value part
+                        val = line.split("=", 1)[1]
+                        # Remove quotes if present
+                        val = val.strip('"').strip("'")
+                        # Remove inline comments if any (simple approach)
+                        if " # " in val:
+                            val = val.split(" # ", 1)[0]
+                        return val.strip()
+            return default
         except Exception:
             return default
 
@@ -639,6 +673,38 @@ class CDSyncIndicator:
         subprocess.Popen(["/bin/bash", core_script, "--force-resync"])
         
         self.send_notification("Repair Started", "Forced resync initiated...\nThis may take a while.")
+        self.update_status()
+
+    def run_dedupe(self, source, mode):
+        if self.is_sync_running():
+             self.send_notification("Ignored", "Sync is already running.")
+             return
+
+        # Confirmation Dialog for Deletion
+        if mode == "newest":
+             dialog = Gtk.MessageDialog(
+                 parent=None,
+                 flags=0,
+                 message_type=Gtk.MessageType.WARNING,
+                 buttons=Gtk.ButtonsType.OK_CANCEL,
+                 text="Confirm Deletion"
+             )
+             dialog.format_secondary_text(
+                 "Deleting all but the newest file is destructive.\n"
+                 "Duplicates will be PERMANENTLY removed from the cloud.\n\n"
+                 "Are you sure?"
+             )
+             response = dialog.run()
+             dialog.destroy()
+             
+             if response != Gtk.ResponseType.OK:
+                 return
+
+        # Run core script with dedupe flag
+        core_script = os.path.join(self.base_dir, "cdsync-core.sh")
+        subprocess.Popen(["/bin/bash", core_script, "--dedupe", mode])
+        
+        # Notification handled by core script, but we update status
         self.update_status()
 
     def change_interval_dialog(self, source):
